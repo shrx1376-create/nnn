@@ -1,9 +1,9 @@
 {
-    "display_name": "Emotional Core",
-    "loading_order": 0,
-    "js": "index.js",
-    "css": "style.css",
-    "author": "bojepoje",
-    "version": "1.0",
-    "auto_update": false
+  "display_name": "Emotional Core",
+  "loading_order": 0,
+  "js": "index.js",
+  "css": "style.css",
+  "author": "You",
+  "version": "1.0",
+  "description": "Глубокие эмоции, травмы, привязанность и реалистичные реакции для персонажей"
 }
