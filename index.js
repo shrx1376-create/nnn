@@ -5,6 +5,8 @@ const { getContext, eventSource, event_types } = SillyTavern;
 const context = getContext();
 const { extensionSettings, saveSettingsDebounced } = context;
 
+console.log('Emotional Core: Starting load...'); // Дебаг
+
 // Получаем или генерируем профиль (без изменений)
 function getEmotionalProfile(charName) {
     if (!extensionSettings[MODULE_NAME]) {
@@ -24,7 +26,7 @@ function getEmotionalProfile(charName) {
     return extensionSettings[MODULE_NAME][charName];
 }
 
-// Улучшение сообщения (без изменений, но с консоль-логом для дебага)
+// Улучшение сообщения (добавил лог)
 function enhanceMessage(message, charName, fullContext) {
     const profile = getEmotionalProfile(charName);
     
@@ -64,139 +66,100 @@ function enhanceMessage(message, charName, fullContext) {
         message +=  ${profile.customEmotions}.;
     }
     
-    console.log('Emotional Core: Enhanced message for', charName); // Для дебага
+    console.log('Emotional Core: Enhanced message for', charName); // Дебаг
     return emotionalLayer + ' ' + message;
 }
 
-// Хуки на генерацию (без изменений)
-eventSource.on(event_types.MESSAGE_READY, (event) => {
-    if (event.detail.isUser) return;
-    const charName = context.characterName || 'Unknown';
-    const fullContext = context.chatHistory ? context.chatHistory.join(' ') : '';
-    event.detail.message = enhanceMessage(event.detail.message, charName, fullContext);
-});
+// Хуки (добавил проверку на existence)
+if (eventSource && event_types) {
+    eventSource.on(event_types.MESSAGE_READY, (event) => {
+        if (event.detail.isUser) return;
+        const charName = context.characterName || 'Unknown';
+        const fullContext = context.chatHistory ? context.chatHistory.join(' ') : '';
+        event.detail.message = enhanceMessage(event.detail.message, charName, fullContext);
+    });
 
-eventSource.on(event_types.GENERATE_PROMPT, (event) => {
-    const charName = context.characterName || 'Unknown';
-    const profile = getEmotionalProfile(charName);
-    event.detail.systemPrompt += \n[Emotional Core: Персонаж имеет тип привязанности "${profile.
+    eventSource.on(event_types.GENERATE_PROMPT, (event) => {
+        const charName = context.characterName || 'Unknown';
+        const profile = getEmotionalProfile(charName);
 
-attachmentType}", особенности восприятия "${profile.perceptionFeatures}", поведение "${profile.behaviorType}", стиль "${profile.affectionStyle}". Веди себя соответственно: добавляй эмоции, мысли, реалистичные детали (дыхание, мурашки, паника от ${profile.triggers}). Избегай клише, фокусируйся на уникальном.];
-});
-
-// Добавление кнопки: адаптировано из WorldInfo Recommender (MutationObserver + append к .char_name)
-let buttonAdded = false;
-function addEmotionalCoreButton() {
-    const header = document.querySelector('#chat-header');
-    if (!header || buttonAdded) return;
-
-    const charNameContainer = header.querySelector('.char_name');
-    if (!charNameContainer) return;
-
-    // Удаляем старую, если есть
-    const oldButton = header.querySelector('.emotional-core-char-button');
-    if (oldButton) oldButton.remove();
-
-    // Создаём новую кнопку как иконку
-    const button = document.createElement('span');
-    button.className = 'emotional-core-char-button';
-    button.innerHTML = '<i class="fa-solid fa-heart" title="Emotional Core Settings"></i>'; // Иконка сердца, как в примерах
-    button.addEventListener('click', openSettingsPanel);
-    buttonAdded = true;
-
-    // Вставляем справа от имени персонажа
-    charNameContainer.parentNode.insertBefore(button, charNameContainer.nextSibling);
-
-    console.log('Emotional Core: Button added to chat header'); // Для дебага
+        event.detail.systemPrompt += \n[Emotional Core: Персонаж имеет тип привязанности "${profile.attachmentType}", особенности восприятия "${profile.perceptionFeatures}", поведение "${profile.behaviorType}", стиль "${profile.affectionStyle}". Веди себя соответственно: добавляй эмоции, мысли, реалистичные детали (дыхание, мурашки, паника от ${profile.triggers}). Избегай клише, фокусируйся на уникальном.];
+    });
+} else {
+    console.warn('Emotional Core: eventSource or event_types not available');
 }
 
-// MutationObserver для динамической вставки (как в WorldInfo Recommender)
+// Добавление кнопки: Observer + setInterval fallback
+function addEmotionalCoreButton() {
+    const header = document.querySelector('#chat-header');
+    if (!header) {
+        console.log('Emotional Core: #chat-header not found yet');
+        return false;
+    }
+
+    // Удаляем старую кнопку, если есть
+    const oldButton = header.querySelector('.emotional-core-char-button');
+    if (oldButton) {
+        oldButton.remove();
+        console.log('Emotional Core: Old button removed');
+    }
+
+    const charNameContainer = header.querySelector('.char_name');
+    if (!charNameContainer) {
+        console.warn('Emotional Core: .char_name not found, appending to header end');
+        const button = document.createElement('span');
+        button.className = 'emotional-core-char-button';
+        button.innerHTML = '<i class="fa-solid fa-heart" title="Emotional Core Settings"></i>';
+        button.addEventListener('click', openSettingsPanel);
+        header.appendChild(button); // В конец хедера
+    } else {
+        // Вставляем после .char_name
+        const button = document.createElement('span');
+        button.className = 'emotional-core-char-button';
+        button.innerHTML = '<i class="fa-solid fa-heart" title="Emotional Core Settings"></i>';
+        button.addEventListener('click', openSettingsPanel);
+        charNameContainer.insertAdjacentElement('afterend', button);
+    }
+
+    console.log('Emotional Core: Button added to chat header');
+    return true;
+}
+
+// MutationObserver
+let observer;
 document.addEventListener('DOMContentLoaded', () => {
-    const observer = new MutationObserver((mutations) => {
-        if (document.querySelector('#chat-header') && !buttonAdded) {
+    console.log('Emotional Core: DOM loaded, setting up observer');
+    observer = new MutationObserver((mutations) => {
+        let shouldAdd = false;
+        mutations.forEach((mutation) => {
+            if (mutation.type === 'childList' && (mutation.addedNodes.length > 0 || mutation.target.id === 'chat-header')) {
+                shouldAdd = true;
+            }
+        });
+        if (shouldAdd) {
             addEmotionalCoreButton();
-        }
-        // Пересоздаём при смене персонажа
-        if (mutations.some(m => m.type === 'childList' && m.target.id === 'chat-header')) {
-            buttonAdded = false;
-            setTimeout(addEmotionalCoreButton, 100); // Небольшая задержка
         }
     });
     observer.observe(document.body, { childList: true, subtree: true });
 });
 
-// Панель настроек (без изменений)
-function openSettingsPanel() {
-    const charName = context.characterName || 'Unknown';
-    const profile = getEmotionalProfile(charName);
-    
-    let panel = document.getElementById('emotional-core-panel');
-    if (panel) panel.remove();
-
-    panel = document.createElement('div');
-    panel.id = 'emotional-core-panel';
-    panel.className = 'emotional-core-panel';
-    panel.innerHTML = `
-        <h3>Emotional Core для ${charName}</h3>
-        <label>Тип привязанности:
-            <select id="attachmentType">
-                <option value="secure" ${profile.attachmentType === 'secure' ? 'selected' : ''}>Надёжный (secure)</option>
-                <option value="anxious" ${profile.attachmentType === 'anxious' ? 'selected' : ''}>Тревожный (anxious)</option>
-                <option value="avoidant" ${profile.attachmentType === 'avoidant' ? 'selected' : ''}>Избегающий (avoidant)</option>
-                <option value="disorganized" ${profile.attachmentType === 'disorganized' ? 'selected' : ''}>Дезорганизованный (disorganized)</option>
-            </select>
-        </label>
-        <label>Стиль привязанности:
-            <select id="affectionStyle">
-                <option value="passionate" ${profile.affectionStyle === 'passionate' ? 'selected' : ''}>Страстный (passionate)</option>
-                <option value="dominant" ${profile.affectionStyle === 'dominant' ? 'selected' : ''}>Доминантный (dominant)</option>
-                <option value="submissive" ${profile.affectionStyle === 'submissive' ? 'selected' : ''}>Подчиняющийся (submissive)</option>
-                <option value="playful" ${profile.affectionStyle === 'playful' ? 'selected' : ''}>Игривый (playful)</option>
-            </select>
-        </label>
-        <label>Тип поведения:
-            <select id="behaviorType">
-                <option value="страстный" ${profile.behaviorType === 'страстный' ? 'selected' : ''}>Страстный</option>
-                <option value="властный" ${profile.
-
-behaviorType === 'властный' ? 'selected' : ''}>Властный</option>
-                <option value="доминантный" ${profile.behaviorType === 'доминантный' ? 'selected' : ''}>Доминантный</option>
-                <option value="холодный" ${profile.behaviorType === 'холодный' ? 'selected' : ''}>Холодный</option>
-                <option value="ласковый" ${profile.behaviorType === 'ласковый' ? 'selected' : ''}>Ласковый</option>
-                <option value="меланхоличный" ${profile.behaviorType === 'меланхоличный' ? 'selected' : ''}>Меланхоличный</option>
-                <option value="obsessive" ${profile.behaviorType === 'obsessive' ? 'selected' : ''}>Навязчивый (obsessive)</option>
-                <option value="empathetic" ${profile.behaviorType === 'empathetic' ? 'selected' : ''}>Эмпатичный (empathetic)</option>
-            </select>
-        </label>
-        <label>Особенности восприятия (травмы, фобии, через запятую):
-            <textarea id="perceptionFeatures">${profile.perceptionFeatures}</textarea>
-        </label>
-        <label>Триггеры (паника, эмоции, через запятую):
-            <input type="text" id="triggers" value="${profile.triggers}">
-        </label>
-        <label>Кастомные эмоции (описания для вставки, e.g. "мурашки от взгляда"):
-            <textarea id="customEmotions">${profile.customEmotions || ''}</textarea>
-        </label>
-        <button onclick="saveProfile('${charName}')">Сохранить</button>
-        <button onclick="document.getElementById('emotional-core-panel').remove()">Закрыть</button>
-    `;
-    document.body.appendChild(panel);
+// Fallback: setInterval для упрямых случаев
+let intervalId;
+function startButtonInterval() {
+    intervalId = setInterval(() => {
+        if (addEmotionalCoreButton()) {
+            clearInterval(intervalId);
+            console.log('Emotional Core: Button added via interval');
+        }
+    }, 500); // Каждые 0.5 сек
 }
 
-// Сохранение (без изменений)
-window.saveProfile = function(charName) {
-    const profile = {
-        attachmentType: document.getElementById('attachmentType').value,
-        affectionStyle: document.getElementById('affectionStyle').value,
-        behaviorType: document.getElementById('behaviorType').value,
-        perceptionFeatures: document.getElementById('perceptionFeatures').value,
-        triggers: document.getElementById('triggers').value,
-        customEmotions: document.getElementById('customEmotions').value
-    };
-    extensionSettings[MODULE_NAME][charName] = profile;
-    saveSettingsDebounced();
-    document.getElementById('emotional-core-panel').remove();
-    console.log('Emotional Core: Profile saved');
-};
+startButtonInterval();
 
-console.log('Emotional Core loaded');
+// Остановка interval при unload (опционально)
+window.addEventListener('beforeunload', () => {
+    if (intervalId) clearInterval(intervalId);
+    if (observer) observer.disconnect();
+});
+
+console.log('Emotional Core loaded fully');
