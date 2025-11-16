@@ -1,0 +1,9 @@
+{
+    "display_name": "Emotional Core",
+    "loading_order": 10,
+    "js": "index.js",
+    "css": "style.css",
+    "author": "Grok-assisted",
+    "version": "1.0",
+    "auto_update": false
+}
