@@ -1,15 +1,16 @@
 .emotional-core-char-button {
     cursor: pointer;
-    color: #4CAF50;
+    color: #4CAF50 !important;
     font-size: 16px;
     margin-left: 8px;
     padding: 2px 4px;
     border-radius: 3px;
     transition: color 0.2s;
+    display: inline-block; /* Чтобы не ломало layout */
 }
 
 .emotional-core-char-button:hover {
-    color: #45a049;
+    color: #45a049 !important;
     background: rgba(76, 175, 80, 0.1);
 }
 
